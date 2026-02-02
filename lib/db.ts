@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { PrismaClient } from '@prisma/client';
 
 export interface Post {
   id: number;
@@ -78,19 +79,20 @@ jsonAdapter.init();
 // ==========================================
 // Strategy 2: Prisma (Production / Backend)
 // ==========================================
-let prismaInstance: any = null;
 
-async function getPrisma() {
-  if (prismaInstance) return prismaInstance;
-  try {
-    // Dynamic import to avoid crash if @prisma/client is not generated locally
-    const { PrismaClient } = await import('@prisma/client');
-    prismaInstance = new PrismaClient();
-    return prismaInstance;
-  } catch (e) {
-    console.error("Failed to load Prisma Client. Ensure `npx prisma generate` is run.", e);
-    return null;
-  }
+// Global Prisma instance to prevent connection exhaustion in dev
+const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
+
+let prisma: PrismaClient | null = null;
+
+// Only instantiate Prisma if database env vars are present
+if (process.env.DATABASE_URL || process.env.POSTGRES_PRISMA_URL) {
+    try {
+        prisma = globalForPrisma.prisma || new PrismaClient();
+        if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+    } catch (e) {
+        console.warn("Failed to initialize Prisma Client", e);
+    }
 }
 
 // ==========================================
@@ -98,57 +100,51 @@ async function getPrisma() {
 // ==========================================
 export const db = {
   getPosts: async (): Promise<Post[]> => {
-    // If DATABASE_URL is set, prefer Prisma
-    if (process.env.DATABASE_URL || process.env.POSTGRES_PRISMA_URL) {
-      const prisma = await getPrisma();
-      if (prisma) {
+    // If Prisma is available, use it
+    if (prisma) {
         try {
-          return await prisma.post.findMany({ orderBy: { createdAt: 'desc' } });
+          // @ts-ignore: Prisma types might differ slightly from interface
+          const posts = await prisma.post.findMany({ orderBy: { createdAt: 'desc' } });
+          return posts as unknown as Post[];
         } catch (e) {
           console.error("Prisma query failed, falling back to JSON", e);
         }
-      }
     }
     return jsonAdapter.getPosts();
   },
   addPost: async (post: Omit<Post, 'id' | 'createdAt'>) => {
-    if (process.env.DATABASE_URL || process.env.POSTGRES_PRISMA_URL) {
-      const prisma = await getPrisma();
-      if (prisma) {
+    if (prisma) {
         try {
+          // @ts-ignore
           return await prisma.post.create({ data: post });
         } catch (e) {
           console.error("Prisma create failed", e);
           throw e; // Don't fall back for writes to avoid data inconsistency
         }
-      }
     }
     return jsonAdapter.addPost(post);
   },
   getLeads: async (): Promise<Lead[]> => {
-    if (process.env.DATABASE_URL || process.env.POSTGRES_PRISMA_URL) {
-      const prisma = await getPrisma();
-      if (prisma) {
+    if (prisma) {
         try {
-          return await prisma.lead.findMany({ orderBy: { createdAt: 'desc' } });
+          // @ts-ignore
+          const leads = await prisma.lead.findMany({ orderBy: { createdAt: 'desc' } });
+          return leads as unknown as Lead[];
         } catch (e) {
           console.error("Prisma query failed", e);
         }
-      }
     }
     return jsonAdapter.getLeads();
   },
   addLead: async (lead: Omit<Lead, 'id' | 'createdAt'>) => {
-    if (process.env.DATABASE_URL || process.env.POSTGRES_PRISMA_URL) {
-      const prisma = await getPrisma();
-      if (prisma) {
+    if (prisma) {
         try {
+          // @ts-ignore
           return await prisma.lead.create({ data: lead });
         } catch (e) {
           console.error("Prisma create failed", e);
           throw e;
         }
-      }
     }
     return jsonAdapter.addLead(lead);
   }
