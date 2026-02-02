@@ -1,6 +1,6 @@
 {
-  "installCommand": "npm install && npx prisma generate",
-  "buildCommand": "next build",
+  "installCommand": "npm install",
+  "buildCommand": "echo 'Generating Prisma Client...' && npx prisma generate && echo 'Building Next.js...' && next build",
   "framework": "nextjs",
   "outputDirectory": ".next"
 }
