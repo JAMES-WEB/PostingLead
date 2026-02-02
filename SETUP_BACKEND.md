@@ -37,19 +37,22 @@ model Post {
 ```
 
 ## Step 3: Deploy the Database Schema
-We have updated `package.json` to automatically run `prisma generate` during the build.
+We have added a `vercel.json` file to automatically handle the setup.
 
-To create the database tables (required for the app to work), you need to push the schema **once**.
-
-**Recommended Way:**
+**Important:**
 1. Go to your Vercel Project Settings > **General**.
 2. Scroll to **Build & Development Settings**.
-3. In **Build Command**, toggle "Override" and enter:
-   ```bash
-   npx prisma db push && next build
-   ```
+3. **Ensure "Build Command" and "Install Command" are NOT overridden.** (Turn off the "Override" toggle if it is on).
 4. Redeploy your app.
-5. (Optional) Once deployed successfully, you can turn off the Override (the app will continue to work).
+
+This will automatically run `npm install && npx prisma generate` during installation, and `next build` for the build.
+
+**One-time Schema Push:**
+If the database tables are not created yet, you might need to run the schema push manually locally or via a one-off command, but usually `prisma generate` is enough for the client.
+To actually create tables in Vercel Postgres:
+1. Connect your local terminal to Vercel: `npx vercel link`
+2. Push schema: `npx prisma db push`
+(Or use the Vercel Storage tab "Browser" to check if tables exist).
 
 ## Step 4: Verify
 Redeploy your app. It should now use the Postgres database instead of the local file.
